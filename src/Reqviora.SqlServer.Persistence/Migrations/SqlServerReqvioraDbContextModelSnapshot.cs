@@ -625,6 +625,11 @@ namespace Reqviora.SqlServer.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<bool>("HasRequirementReviewHistory")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Industry")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -742,6 +747,11 @@ namespace Reqviora.SqlServer.Persistence.Migrations
                     b.Property<string>("DraftJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsReviewManaged")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<DateTimeOffset?>("LastModifiedAt")
                         .HasColumnType("datetimeoffset");

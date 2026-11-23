@@ -59,6 +59,71 @@ public sealed class SqlServerRequirementReviewStore(string connectionString) : I
         await connection.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
             IsolationLevel.ReadCommitted, cancellationToken);
+
+        // Lock the project before committing a review decision.
+        // Other transactions following the same protocol must wait.
+        const string projectLockSql = """
+            SELECT [Id]
+            FROM [Projects] WITH (UPDLOCK, HOLDLOCK)
+            WHERE [Id] = @project_id;
+            """;
+
+        await using (var projectLock = new SqlCommand(
+            projectLockSql, connection, transaction))
+        {
+            projectLock.Parameters.Add(
+                "@project_id",
+                SqlDbType.UniqueIdentifier
+            ).Value = projectId;
+
+            var lockedProject =
+                await projectLock.ExecuteScalarAsync(
+                    cancellationToken);
+
+            if (lockedProject is null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
+            }
+        }
+
+
+        // Block review changes while the current project draft
+        // is approved. A new draft must be started first.
+        const string approvedDraftSql = """
+            SELECT CASE WHEN EXISTS (
+                SELECT 1
+                FROM [ProjectDrafts]
+                WHERE [ProjectId] = @project_id
+                  AND [ApprovedRevisionId] IS NOT NULL
+            ) THEN 1 ELSE 0 END;
+            """;
+
+        await using (var approvedCheck = new SqlCommand(
+            approvedDraftSql, connection, transaction))
+        {
+            approvedCheck.Parameters.Add(
+                "@project_id",
+                SqlDbType.UniqueIdentifier
+            ).Value = projectId;
+
+            var approved =
+                await approvedCheck.ExecuteScalarAsync(
+                    cancellationToken);
+
+            if (Convert.ToInt32(approved) != 0)
+            {
+                await transaction.RollbackAsync(
+                    cancellationToken);
+
+                return false;
+            }
+        }
+
+
+
+
+
         const string updateSql = """
             UPDATE reqviora_review.requirements
             SET title = @title, description = @description, status = @status,

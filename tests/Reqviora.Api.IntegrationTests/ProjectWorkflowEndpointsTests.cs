@@ -19,6 +19,7 @@ using Reqviora.Application.Features.UIGeneration.Blueprint.Validation;
 using Reqviora.Domain.Entities;
 using Reqviora.Infrastructure.Persistence;
 using Xunit;
+using Reqviora.Application.Features.RequirementReview;
 
 namespace Reqviora.Api.IntegrationTests;
 
@@ -494,8 +495,11 @@ public sealed class ProjectWorkflowEndpointsTests : IDisposable
                 services.RemoveAll<DbContextOptions<ReqvioraDbContext>>();
                 services.RemoveAll<IDbContextOptionsConfiguration<ReqvioraDbContext>>();
                 services.RemoveAll<ReqvioraDbContext>();
+                services.RemoveAll<IRequirementReviewCatalog>();
                 services.RemoveAll<IFileStorageService>();
                 services.AddDbContext<ReqvioraDbContext>(options => options.UseSqlite(_connection));
+                services.AddSingleton<IRequirementReviewCatalog>(
+    new EmptyRequirementReviewCatalog());
                 services.AddSingleton<IFileStorageService>(Storage);
             });
         }
@@ -515,7 +519,22 @@ public sealed class ProjectWorkflowEndpointsTests : IDisposable
             DisplayName = email
         };
 
-        public sealed class TestFileStorage : IFileStorageService
+
+
+private sealed class EmptyRequirementReviewCatalog
+    : IRequirementReviewCatalog
+ {
+            public Task<IReadOnlyList<ReviewedRequirement>>
+                ListByProjectAsync(
+                    Guid projectId,
+                    CancellationToken cancellationToken = default)
+            {
+                IReadOnlyList<ReviewedRequirement> reviews = [];
+
+                return Task.FromResult(reviews);
+            }
+        }
+public sealed class TestFileStorage : IFileStorageService
         {
             public int Saves { get; private set; }
             public bool RejectNext { get; set; }

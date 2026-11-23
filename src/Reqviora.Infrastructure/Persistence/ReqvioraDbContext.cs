@@ -50,6 +50,7 @@ public class ReqvioraDbContext : DbContext
 
         modelBuilder.Entity<User>(entity =>
         {
+
             entity.HasIndex(user => user.NormalizedEmail).IsUnique();
             entity.Property(user => user.Email).HasMaxLength(320).IsRequired();
             entity.Property(user => user.NormalizedEmail).HasMaxLength(320).IsRequired();
@@ -89,6 +90,8 @@ public class ReqvioraDbContext : DbContext
 
         modelBuilder.Entity<Project>(entity =>
         {
+            entity.Property(project => project.HasRequirementReviewHistory)
+                .HasDefaultValue(false);
             entity.HasIndex(project => project.OwnerId);
             entity.Property(project => project.Name).HasMaxLength(200).IsRequired();
             entity.Property(project => project.Description).HasMaxLength(4000);

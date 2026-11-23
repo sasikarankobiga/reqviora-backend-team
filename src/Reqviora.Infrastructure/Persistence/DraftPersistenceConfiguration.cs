@@ -30,6 +30,9 @@ internal static class DraftPersistenceConfiguration
         member.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.NoAction);
 
         var draft = model.Entity<ProjectDraft>();
+        draft.Property(x => x.IsReviewManaged)
+    .HasDefaultValue(false)
+    .IsRequired();
         draft.ToTable(table => table.HasCheckConstraint("CK_ProjectDrafts_Version", $"{versionColumn} > 0"));
         draft.HasIndex(x => x.ProjectId).IsUnique();
         draft.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
