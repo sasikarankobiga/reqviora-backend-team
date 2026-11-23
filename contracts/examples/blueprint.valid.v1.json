@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "1.0.0",
+  "blueprintId": "BP-SCHOOL-LIBRARY-001",
+  "projectId": "a78654c8-5acc-4d76-867b-2dd51080cb5e",
+  "revision": 1,
+  "lifecycle": "draft",
+  "targetPlatforms": ["web", "mobile"],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "text": "Users can search the school library catalogue.",
+      "origin": "user",
+      "status": "confirmed",
+      "confirmedBy": "school-librarian",
+      "confirmedAt": "2026-11-17T09:00:00Z",
+      "evidence": [
+        {
+          "sourceId": "BRD-SCHOOL-LIBRARY",
+          "locator": "section 3.1",
+          "quote": "Students need to search for available books."
+        }
+      ]
+    },
+    {
+      "id": "REQ-002",
+      "text": "The system can remind users when borrowed books are due.",
+      "origin": "ai",
+      "status": "suggested",
+      "evidence": [
+        {
+          "sourceId": "AI-SESSION-001",
+          "locator": "suggestion 2",
+          "quote": "Consider a return reminder."
+        }
+      ]
+    }
+  ],
+  "features": [
+    {
+      "id": "FEAT-001",
+      "name": "Catalogue Search",
+      "requirementIds": ["REQ-001"]
+    }
+  ],
+  "screens": [
+    {
+      "id": "SCR-001",
+      "name": "Home",
+      "featureIds": ["FEAT-001"],
+      "componentIds": ["CMP-001"]
+    },
+    {
+      "id": "SCR-002",
+      "name": "Search",
+      "featureIds": ["FEAT-001"],
+      "componentIds": ["CMP-002"]
+    }
+  ],
+  "components": [
+    {
+      "id": "CMP-001",
+      "screenId": "SCR-001",
+      "type": "Button",
+      "props": {
+        "label": "Search Books"
+      },
+      "actionIds": ["ACT-001"],
+      "childComponentIds": []
+    },
+    {
+      "id": "CMP-002",
+      "screenId": "SCR-002",
+      "type": "TextInput",
+      "props": {
+        "label": "Title or author",
+        "placeholder": "Search the catalogue"
+      },
+      "actionIds": [],
+      "childComponentIds": []
+    }
+  ],
+  "actions": [
+    {
+      "id": "ACT-001",
+      "componentId": "CMP-001",
+      "kind": "navigate",
+      "navigationId": "NAV-001"
+    }
+  ],
+  "navigation": [
+    {
+      "id": "NAV-001",
+      "sourceScreenId": "SCR-001",
+      "targetScreenId": "SCR-002",
+      "actionId": "ACT-001"
+    }
+  ]
+}

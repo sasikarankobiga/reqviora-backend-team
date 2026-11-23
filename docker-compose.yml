@@ -1,0 +1,59 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__ReqvioraDatabase: Host=postgres;Port=5432;Database=${POSTGRES_DB:-reqviora};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      AccountLinks__BaseUrl: ${ACCOUNTLINKS__BASEURL:?Set ACCOUNTLINKS__BASEURL in .env}
+      Cors__AllowedOrigins__0: ${CORS__ALLOWEDORIGINS__0:?Set CORS__ALLOWEDORIGINS__0 in .env}
+      Smtp__Host: ${SMTP__HOST:-}
+      Smtp__Port: ${SMTP__PORT:-587}
+      Smtp__UserName: ${SMTP__USERNAME:-}
+      Smtp__Password: ${SMTP__PASSWORD:-}
+      Smtp__FromAddress: ${SMTP__FROMADDRESS:-}
+      Smtp__UseSsl: ${SMTP__USESSL:-true}
+      AI__ApiKey: ${AI__APIKEY:-}
+      AI__Enabled: ${AI__ENABLED:-false}
+      AI__Model: ${AI__MODEL:-gpt-5-mini}
+      AI__TranscriptionModel: ${AI__TRANSCRIPTIONMODEL:-gpt-4o-mini-transcribe}
+      Mcp__Enabled: ${MCP__ENABLED:-false}
+      Storage__RootPath: /var/lib/reqviora/private-artifacts
+      Storage__RequireAntivirus: ${STORAGE__REQUIREANTIVIRUS:-true}
+      Storage__ClamAvHost: clamav
+    volumes:
+      - private_artifacts:/var/lib/reqviora/private-artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+  clamav:
+    image: clamav/clamav:1.4
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-reqviora}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  private_artifacts:

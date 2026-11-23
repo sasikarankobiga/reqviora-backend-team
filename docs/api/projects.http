@@ -1,0 +1,59 @@
+@baseUrl = https://localhost:7224
+@accessToken = paste-owner-access-token-here
+@otherUserAccessToken = paste-another-user-access-token-here
+@projectId = paste-created-project-id-here
+
+### Create an owner project (expect 201)
+POST {{baseUrl}}/api/projects
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Coffee Shop",
+  "description": "Online ordering and table booking workspace"
+}
+
+### List the owner's projects (expect 200)
+GET {{baseUrl}}/api/projects
+Authorization: Bearer {{accessToken}}
+
+### Get the owner project (expect 200)
+GET {{baseUrl}}/api/projects/{{projectId}}
+Authorization: Bearer {{accessToken}}
+
+### Update the owner project (expect 200)
+PUT {{baseUrl}}/api/projects/{{projectId}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Coffee Shop Platform",
+  "description": "Updated ordering and booking workspace"
+}
+
+### Cross-user read must not reveal the project (expect 404)
+GET {{baseUrl}}/api/projects/{{projectId}}
+Authorization: Bearer {{otherUserAccessToken}}
+
+### Cross-user update must not change the project (expect 404)
+PUT {{baseUrl}}/api/projects/{{projectId}}
+Authorization: Bearer {{otherUserAccessToken}}
+Content-Type: application/json
+
+{
+  "name": "Unauthorized change",
+  "description": "This must never be saved"
+}
+
+### Anonymous access is rejected (expect 401)
+GET {{baseUrl}}/api/projects
+
+### Validation rejects short name (expect 400)
+POST {{baseUrl}}/api/projects
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "X",
+  "description": "Invalid project"
+}

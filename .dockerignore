@@ -1,0 +1,30 @@
+# Git and editor metadata
+.git
+**/.git
+.vs
+.vscode
+.idea
+
+# Environment and local configuration
+.env
+.env.*
+**/.env
+**/.env.*
+**/appsettings.Development.json
+**/appsettings.Production.json
+
+# Build outputs
+**/bin
+**/obj
+**/TestResults
+**/coverage
+
+# Private keys and local databases
+**/*.pfx
+**/*.p12
+**/*.pem
+**/*.key
+**/*.sqlite
+**/*.db
+**/*.bak
+**/*.log

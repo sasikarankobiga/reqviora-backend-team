@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+.env
+TestResults/
+coverage/
+
+# Local development configuration - do not commit secrets
+/src/Reqviora.Api/appsettings.Development.json

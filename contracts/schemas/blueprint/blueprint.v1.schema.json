@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:reqviora:blueprint:schema:1.0.0",
+  "title": "REQVIORA Universal Blueprint v1",
+  "description": "Versioned, platform-neutral structural contract for a REQVIORA software blueprint.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "blueprintId",
+    "projectId",
+    "revision",
+    "lifecycle",
+    "targetPlatforms",
+    "requirements",
+    "features",
+    "screens",
+    "components",
+    "actions",
+    "navigation"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "blueprintId": { "$ref": "#/$defs/blueprintId" },
+    "projectId": { "type": "string", "format": "uuid" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "lifecycle": { "const": "draft" },
+    "targetPlatforms": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["web", "mobile", "desktop"] }
+    },
+    "requirements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/requirement" }
+    },
+    "features": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/feature" }
+    },
+    "screens": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/screen" }
+    },
+    "components": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/component" }
+    },
+    "actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" }
+    },
+    "navigation": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/navigation" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "blueprintId": {
+      "type": "string",
+      "pattern": "^BP-[A-Z0-9][A-Z0-9._-]*(?![\\s\\S])"
+    },
+    "requirementId": {
+      "type": "string",
+      "pattern": "^REQ-[A-Z0-9][A-Z0-9._-]*(?![\\s\\S])"
+    },
+    "featureId": {
+      "type": "string",
+      "pattern": "^FEAT-[A-Z0-9][A-Z0-9._-]*(?![\\s\\S])"
+    },
+    "screenId": {
+      "type": "string",
+      "pattern": "^SCR-[A-Z0-9][A-Z0-9._-]*(?![\\s\\S])"
+    },
+    "componentId": {
+      "type": "string",
+      "pattern": "^CMP-[A-Z0-9][A-Z0-9._-]*(?![\\s\\S])"
+    },
+    "actionId": {
+      "type": "string",
+      "pattern": "^ACT-[A-Z0-9][A-Z0-9._-]*(?![\\s\\S])"
+    },
+    "navigationId": {
+      "type": "string",
+      "pattern": "^NAV-[A-Z0-9][A-Z0-9._-]*(?![\\s\\S])"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["sourceId", "locator"],
+      "properties": {
+        "sourceId": { "$ref": "#/$defs/nonEmptyString" },
+        "locator": { "$ref": "#/$defs/nonEmptyString" },
+        "quote": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "requirement": {
+      "type": "object",
+      "required": ["id", "text", "origin", "status", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/requirementId" },
+        "text": { "$ref": "#/$defs/nonEmptyString" },
+        "origin": { "enum": ["user", "document", "voice", "ai"] },
+        "status": { "enum": ["suggested", "confirmed", "rejected"] },
+        "confirmedBy": { "$ref": "#/$defs/nonEmptyString" },
+        "confirmedAt": { "type": "string", "format": "date-time" },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/evidence" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "confirmed" } },
+            "required": ["status"]
+          },
+          "then": { "required": ["confirmedBy", "confirmedAt"] },
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["confirmedBy"] },
+                { "required": ["confirmedAt"] }
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "feature": {
+      "type": "object",
+      "required": ["id", "name", "requirementIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/featureId" },
+        "name": { "$ref": "#/$defs/nonEmptyString" },
+        "requirementIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/requirementId" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "screen": {
+      "type": "object",
+      "required": ["id", "name", "featureIds", "componentIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/screenId" },
+        "name": { "$ref": "#/$defs/nonEmptyString" },
+        "featureIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/featureId" }
+        },
+        "componentIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/componentId" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "component": {
+      "type": "object",
+      "required": ["id", "screenId", "type", "props", "actionIds", "childComponentIds"],
+      "properties": {
+        "id": { "$ref": "#/$defs/componentId" },
+        "screenId": { "$ref": "#/$defs/screenId" },
+        "type": {
+          "enum": ["Button", "TextInput", "Text", "Card", "List", "Container", "Image", "Dialog"]
+        },
+        "props": { "type": "object" },
+        "actionIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/actionId" }
+        },
+        "childComponentIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/componentId" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "action": {
+      "type": "object",
+      "required": ["id", "componentId", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/actionId" },
+        "componentId": { "$ref": "#/$defs/componentId" },
+        "kind": {
+          "enum": ["navigate", "submit", "update", "openDialog", "closeDialog"]
+        },
+        "navigationId": { "$ref": "#/$defs/navigationId" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "kind": { "const": "navigate" } },
+            "required": ["kind"]
+          },
+          "then": { "required": ["navigationId"] },
+          "else": { "not": { "required": ["navigationId"] } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "navigation": {
+      "type": "object",
+      "required": ["id", "sourceScreenId", "targetScreenId", "actionId"],
+      "properties": {
+        "id": { "$ref": "#/$defs/navigationId" },
+        "sourceScreenId": { "$ref": "#/$defs/screenId" },
+        "targetScreenId": { "$ref": "#/$defs/screenId" },
+        "actionId": { "$ref": "#/$defs/actionId" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

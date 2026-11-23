@@ -1,0 +1,92 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, develop, Kobiga, Rashmina, Varmitha]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: reqviora_ci_postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: ReqvioraCi_SQL_2026!
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'ReqvioraCi_SQL_2026!' -C -Q 'SELECT 1'"
+          --health-start-period 30s
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 18
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Select PostgreSQL 16 client tools
+        shell: bash
+        run: |
+          postgres_bin="${RUNNER_TEMP}/postgresql-16-client"
+          mkdir -p "${postgres_bin}"
+          for tool in pg_dump pg_restore psql createdb dropdb; do
+            cat > "${postgres_bin}/${tool}" <<EOF
+          #!/usr/bin/env bash
+          exec docker run --rm --network host \
+            --env PGHOST --env PGPORT --env PGUSER --env PGPASSWORD --env PGDATABASE \
+            --volume "${RUNNER_TEMP}:${RUNNER_TEMP}" \
+            postgres:16 ${tool} "\$@"
+          EOF
+            chmod +x "${postgres_bin}/${tool}"
+          done
+          echo "${postgres_bin}" >> "${GITHUB_PATH}"
+          export PATH="${postgres_bin}:${PATH}"
+          command -v pg_dump
+          command -v pg_restore
+          "${postgres_bin}/pg_dump" --version
+          "${postgres_bin}/pg_restore" --version
+      - run: dotnet test Reqviora.sln --configuration Release
+        env:
+          REQVIORA_TEST_POSTGRES: Host=127.0.0.1;Port=5432;Database=postgres;Username=postgres;Password=reqviora_ci_postgres
+          REQVIORA_TEST_SQLSERVER: Server=127.0.0.1,1433;Database=master;User ID=sa;Password=ReqvioraCi_SQL_2026!;TrustServerCertificate=True
+      - name: Verify requirement review stores
+        shell: bash
+        env:
+          REQVIORA_REVIEW_PG: Host=127.0.0.1;Port=5432;Database=postgres;Username=postgres;Password=reqviora_ci_postgres
+          REQVIORA_REVIEW_SQLSERVER: Server=127.0.0.1,1433;Database=master;User ID=sa;Password=ReqvioraCi_SQL_2026!;TrustServerCertificate=True
+        run: |
+          dotnet run --configuration Release --project tests/Reqviora.Review.PgSmokeTests
+          dotnet run --configuration Release --project tests/Reqviora.Review.SqlServerSmokeTests
+      - name: Verify PostgreSQL backup and isolated restore
+        shell: bash
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: reqviora_ci_postgres
+          PGDATABASE: postgres
+        run: .github/scripts/postgres-backup-restore-drill.sh
+      - name: Run contract suites
+        shell: bash
+        run: |
+          for suite in InputPipeline.ContractTests Blueprint.SchemaTests Blueprint.ContractTests Day03.ContractTests RequirementReview.Tests Review.ApiContracts.Tests; do
+            dotnet run --configuration Release --project "tests/Reqviora.$suite"
+          done
+      - name: Verify production container build
+        run: docker build --tag reqviora-backend:ci .
