@@ -4,6 +4,7 @@ namespace Reqviora.Domain.Entities;
 
 public sealed class Project : AggregateRoot
 {
+    public bool HasRequirementReviewHistory { get; set; } = false;
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Industry { get; set; } = string.Empty;

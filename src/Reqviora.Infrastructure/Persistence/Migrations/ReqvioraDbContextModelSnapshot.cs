@@ -610,6 +610,11 @@ namespace Reqviora.Infrastructure.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<bool>("HasRequirementReviewHistory")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Industry")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -727,6 +732,11 @@ namespace Reqviora.Infrastructure.Persistence.Migrations
                     b.Property<string>("DraftJson")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<bool>("IsReviewManaged")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<DateTimeOffset?>("LastModifiedAt")
                         .HasColumnType("timestamp with time zone");

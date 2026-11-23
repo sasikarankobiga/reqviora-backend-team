@@ -12,6 +12,7 @@ using Reqviora.Application.Features.UIGeneration.Blueprint.Models;
 using Reqviora.Domain.Entities;
 using Reqviora.Infrastructure.Persistence;
 using Reqviora.Infrastructure.Services;
+using Reqviora.Application.Features.RequirementReview;
 
 namespace Reqviora.Infrastructure.Tests;
 
@@ -33,7 +34,7 @@ public sealed class ProjectDraftServiceTests
         await using var database = await PersistenceDatabase.CreateAsync(provider);
         await using var db = database.Open();
         var (owner, project) = await SeedProjectAsync(db);
-        var service = new ProjectDraftService(db);
+        var service = CreateService(db);
         Assert.Null(await service.ResumeAsync(project.Id, owner.Id));
 
         var original = await service.SaveAsync(project.Id, owner.Id, """{"step":"scope"}""", null);
@@ -46,7 +47,7 @@ public sealed class ProjectDraftServiceTests
         var id = original.Id;
 
         await using var anotherDb = database.Open();
-        var anotherService = new ProjectDraftService(anotherDb);
+        var anotherService = CreateService(anotherDb);
         var resumed = await anotherService.ResumeAsync(project.Id, owner.Id);
         Assert.NotNull(resumed);
         Assert.Equal(id, resumed.Id);
@@ -66,7 +67,7 @@ public sealed class ProjectDraftServiceTests
 
         await using var staleDb = database.Open();
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
-            new ProjectDraftService(staleDb).SaveAsync(project.Id, owner.Id, "{}", originalToken));
+            CreateService(staleDb).SaveAsync(project.Id, owner.Id, "{}", originalToken));
         Assert.Equal(1, await staleDb.ProjectDrafts.CountAsync());
         Assert.Equal(2, await staleDb.DesignDraftVersions.CountAsync());
         Assert.Equal("""{"step":"review"}""", (await anotherService.ResumeAsync(project.Id, owner.Id))!.DraftJson);
@@ -79,7 +80,7 @@ public sealed class ProjectDraftServiceTests
         await using var database = await PersistenceDatabase.CreateAsync(provider);
         await using var db = database.Open();
         var (owner, project) = await SeedProjectAsync(db);
-        var service = new ProjectDraftService(db);
+      var service = CreateService(db);
         var blueprint = await LoadBlueprintAsync(project.Id);
 
         var designed = await service.SaveDesignAsync(
@@ -108,7 +109,7 @@ public sealed class ProjectDraftServiceTests
         await using var database = await PersistenceDatabase.CreateAsync(provider);
         await using var db = database.Open();
         var (owner, project) = await SeedProjectAsync(db);
-        var service = new ProjectDraftService(db);
+        var service = CreateService(db);
         var exports = new ProjectExportService(db);
 
         var broken = await LoadBlueprintAsync(project.Id, breakRoute: true);
@@ -281,7 +282,7 @@ public sealed class ProjectDraftServiceTests
         }
 
         var (owner, current) = await SeedProjectAsync(db);
-        var draft = await new ProjectDraftService(db).SaveAsync(current.Id, owner.Id, "{}", null);
+        var draft = await CreateService(db).SaveAsync(current.Id, owner.Id, "{}", null);
         if (provider == "sqlserver")
         {
             await using var anotherDb = database.Open();
@@ -311,7 +312,7 @@ public sealed class ProjectDraftServiceTests
     {
         try
         {
-            await new ProjectDraftService(db).SaveAsync(project, actor, "{}", token);
+            await CreateService(db).SaveAsync(project, actor, "{}", token);
             return true;
         }
         catch (DbUpdateConcurrencyException)
@@ -319,6 +320,29 @@ public sealed class ProjectDraftServiceTests
             return false;
         }
     }
+
+    private static ProjectDraftService CreateService(
+        ReqvioraDbContext db)
+    {
+        return new ProjectDraftService(
+            db,
+            new EmptyRequirementReviewCatalog());
+    }
+
+    private sealed class EmptyRequirementReviewCatalog
+        : IRequirementReviewCatalog
+    {
+        public Task<IReadOnlyList<ReviewedRequirement>>
+            ListByProjectAsync(
+                Guid projectId,
+                CancellationToken cancellationToken = default)
+        {
+            IReadOnlyList<ReviewedRequirement> reviews = [];
+
+            return Task.FromResult(reviews);
+        }
+    }
+
 
     private static async Task<(User Owner, Project Project)> SeedProjectAsync(ReqvioraDbContext db)
     {

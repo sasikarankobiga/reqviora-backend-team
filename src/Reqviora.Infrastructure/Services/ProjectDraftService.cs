@@ -5,25 +5,81 @@ using Reqviora.Application.Features.UIGeneration.Blueprint.Models;
 using Reqviora.Domain.Entities;
 using Reqviora.Infrastructure.Authorization;
 using Reqviora.Infrastructure.Persistence;
+using Reqviora.Application.Features.RequirementReview;
+using Reqviora.Application.Features.WorkflowIntegration;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Reqviora.Infrastructure.Services;
 
-public sealed class ProjectDraftService(ReqvioraDbContext db)
+public sealed class ProjectDraftService(
+    ReqvioraDbContext db,
+    IRequirementReviewCatalog reviewCatalog)
 {
+
     public Task<ProjectDraft> SaveAsync(
-        Guid projectId, Guid actorId, string draftJson, Guid? expectedToken, CancellationToken cancellationToken = default) =>
-        SaveCoreAsync(projectId, actorId, draftJson, null, expectedToken, cancellationToken);
+        Guid projectId,
+        Guid actorId,
+        string draftJson,
+        Guid? expectedToken,
+        CancellationToken cancellationToken = default) =>
+        SaveCoreAsync(
+            projectId,
+            actorId,
+            draftJson,
+            null,
+            expectedToken,
+            cancellationToken);
 
     public Task<ProjectDraft> SaveDesignAsync(
-        Guid projectId, Guid actorId, string draftJson, BlueprintDocument blueprint, Guid? expectedToken,
+        Guid projectId,
+        Guid actorId,
+        string draftJson,
+        BlueprintDocument blueprint,
+        Guid? expectedToken,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(blueprint);
-        if (blueprint.ProjectId != projectId)
-            throw new ArgumentException("The Blueprint must belong to the project.", nameof(blueprint));
 
-        return SaveCoreAsync(projectId, actorId, draftJson, blueprint, expectedToken, cancellationToken);
+        if (blueprint.ProjectId != projectId)
+            throw new ArgumentException(
+                "The Blueprint must belong to the project.",
+                nameof(blueprint));
+
+        return SaveCoreAsync(
+            projectId,
+            actorId,
+            draftJson,
+            blueprint,
+            expectedToken,
+            cancellationToken);
     }
+
+    public Task<ProjectDraft> SaveReviewedDesignAsync(
+        Guid projectId,
+        Guid actorId,
+        string draftJson,
+        BlueprintDocument blueprint,
+        Guid? expectedToken,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(blueprint);
+
+        if (blueprint.ProjectId != projectId)
+            throw new ArgumentException(
+                "The Blueprint must belong to the project.",
+                nameof(blueprint));
+
+        return SaveCoreAsync(
+            projectId,
+            actorId,
+            draftJson,
+            blueprint,
+            expectedToken,
+            cancellationToken,
+            isReviewManaged: true);
+    }
+
+
 
     public async Task<ProjectDraft?> ResumeAsync(Guid projectId, Guid actorId, CancellationToken cancellationToken = default)
     {
@@ -72,22 +128,119 @@ public sealed class ProjectDraftService(ReqvioraDbContext db)
         return run;
     }
 
+
     public async Task<ApprovedRevision> ApproveAsync(
         Guid projectId, Guid actorId, Guid expectedToken, Guid validationRunId,
         CancellationToken cancellationToken = default)
     {
+
+        // Begin one approval transaction before reading review state.
+        await using var approvalTransaction =
+            await db.Database.BeginTransactionAsync(
+                cancellationToken);
+
+        // All writers for the same project must follow this lock order.
+        var projectLockSql = db.Database.ProviderName switch
+        {
+            "Npgsql.EntityFrameworkCore.PostgreSQL" => """
+                SELECT "Id"
+                FROM "Projects"
+                WHERE "Id" = @project_id
+                FOR UPDATE;
+                """,
+
+            "Microsoft.EntityFrameworkCore.SqlServer" => """
+                SELECT [Id]
+                FROM [Projects] WITH (UPDLOCK, HOLDLOCK)
+                WHERE [Id] = @project_id;
+                """,
+
+            // SQLite is used by the existing integration tests.
+            // These tests do not verify production row-lock behavior.
+            "Microsoft.EntityFrameworkCore.Sqlite" => null,
+
+            _ => throw new NotSupportedException(
+                $"Unsupported database provider: {db.Database.ProviderName}")
+        };
+
+        if (projectLockSql is not null)
+        {
+            var connection = db.Database.GetDbConnection();
+
+            await using var projectLock =
+                connection.CreateCommand();
+
+            projectLock.Transaction =
+                approvalTransaction.GetDbTransaction();
+
+            projectLock.CommandText = projectLockSql;
+
+            var parameter = projectLock.CreateParameter();
+            parameter.ParameterName = "@project_id";
+            parameter.Value = projectId;
+
+            projectLock.Parameters.Add(parameter);
+
+            var lockedProject =
+                await projectLock.ExecuteScalarAsync(
+                    cancellationToken);
+
+            if (lockedProject is null)
+            {
+                throw new KeyNotFoundException(
+                    "Project not found.");
+            }
+        }
+
         var project = await ProjectOwnerAccess.RequireAsync(db, projectId, actorId, cancellationToken);
         var draft = await GetRequiredDraftAsync(projectId, expectedToken, cancellationToken);
         EnsureOpen(draft);
         var version = await GetCurrentVersionAsync(draft, cancellationToken);
+
         var validation = await db.ValidationRuns.AsNoTracking()
-            .SingleOrDefaultAsync(x => x.Id == validationRunId && x.DraftVersionId == version.Id, cancellationToken);
+            .SingleOrDefaultAsync(
+                x => x.Id == validationRunId &&
+                     x.DraftVersionId == version.Id,
+                cancellationToken);
 
-        if (validation is null || !validation.Passed || version.BlueprintJson is null)
-            throw new InvalidOperationException("Approval requires a successful validation run for the current draft version.");
+        if (validation is null ||
+            !validation.Passed ||
+            version.BlueprintJson is null)
+        {
+            throw new InvalidOperationException(
+                "Approval requires a successful validation run for the current draft version.");
+        }
 
-        var blueprint = JsonSerializer.Deserialize<BlueprintDocument>(version.BlueprintJson, DraftBlueprint.Json)
-            ?? throw new InvalidOperationException("The validated draft has no Blueprint.");
+        var blueprint = JsonSerializer.Deserialize<BlueprintDocument>(
+            version.BlueprintJson,
+            DraftBlueprint.Json)
+            ?? throw new InvalidOperationException(
+                "The validated draft has no Blueprint.");
+
+        var reviews = await reviewCatalog.ListByProjectAsync(
+            projectId,
+            cancellationToken);
+
+        if ((project.HasRequirementReviewHistory || draft.IsReviewManaged)
+            && reviews.Count == 0)
+        {
+            throw new RequirementReviewConflictException(
+                "Approval blocked: review-managed project " +
+                "has no requirement review records.");
+        }
+
+        if (project.HasRequirementReviewHistory ||
+            draft.IsReviewManaged ||
+            reviews.Count > 0)
+        {
+            ReviewBlueprintApprovalPolicy.EnsureSynchronized(
+                blueprint,
+                reviews);
+        }
+
+
+
+
         var approvedAt = DateTimeOffset.UtcNow;
         var revision = new ApprovedRevision
         {
@@ -114,8 +267,14 @@ public sealed class ProjectDraftService(ReqvioraDbContext db)
         RotateToken(draft);
 
         // The snapshot, approval audit and concurrency-checked draft update share one EF transaction.
+
         await PersistDraftAsync(cancellationToken);
+
+        // Commit only after review checks and approval persistence succeed.
+        await approvalTransaction.CommitAsync(cancellationToken);
+
         return revision;
+
     }
 
     public async Task<ProjectDraft> StartAfterApprovalAsync(
@@ -142,9 +301,11 @@ public sealed class ProjectDraftService(ReqvioraDbContext db)
         return draft;
     }
 
-    private async Task<ProjectDraft> SaveCoreAsync(
-        Guid projectId, Guid actorId, string draftJson, BlueprintDocument? blueprint, Guid? expectedToken,
-        CancellationToken cancellationToken)
+ private async Task<ProjectDraft> SaveCoreAsync(
+    Guid projectId, Guid actorId, string draftJson,
+    BlueprintDocument? blueprint, Guid? expectedToken,
+    CancellationToken cancellationToken,
+    bool isReviewManaged = false)
     {
         await ProjectOwnerAccess.RequireWriteAsync(db, projectId, actorId, cancellationToken);
         RequireDraftJson(draftJson);
@@ -180,6 +341,9 @@ public sealed class ProjectDraftService(ReqvioraDbContext db)
         }
 
         draft.DraftJson = draftJson;
+
+        if (isReviewManaged)
+    draft.IsReviewManaged = true;
         RotateToken(draft);
         AddDraftVersion(draft, blueprintForVersion, blueprintJson);
         await PersistDraftAsync(cancellationToken);

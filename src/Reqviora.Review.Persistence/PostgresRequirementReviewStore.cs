@@ -173,6 +173,68 @@ public sealed class PostgresRequirementReviewStore
                 IsolationLevel.ReadCommitted,
                 cancellationToken);
 
+        // Serialize operations for the same project.
+        const string projectLockSql = """
+            SELECT "Id"
+            FROM "Projects"
+            WHERE "Id" = @project_id
+            FOR UPDATE;
+            """;
+
+        await using (var projectLock = new NpgsqlCommand(
+            projectLockSql, connection, transaction))
+        {
+            projectLock.Parameters.AddWithValue(
+                "project_id",
+                NpgsqlDbType.Uuid,
+                projectId);
+
+            var lockedProject =
+                await projectLock.ExecuteScalarAsync(
+                    cancellationToken);
+
+            if (lockedProject is null)
+            {
+                await transaction.RollbackAsync(
+                    cancellationToken);
+
+                return false;
+            }
+        }
+
+        // Block review changes while the current draft is approved.
+        // A new draft must be started before further decisions.
+        const string approvedDraftSql = """
+            SELECT EXISTS (
+                SELECT 1
+                FROM "ProjectDrafts"
+                WHERE "ProjectId" = @project_id
+                  AND "ApprovedRevisionId" IS NOT NULL
+            );
+            """;
+
+        await using (var approvedCheck = new NpgsqlCommand(
+            approvedDraftSql, connection, transaction))
+        {
+            approvedCheck.Parameters.AddWithValue(
+                "project_id",
+                NpgsqlDbType.Uuid,
+                projectId);
+
+            var isApproved =
+                await approvedCheck.ExecuteScalarAsync(
+                    cancellationToken);
+
+            if (isApproved is true)
+            {
+                await transaction.RollbackAsync(
+                    cancellationToken);
+
+                return false;
+            }
+        }
+
+        // Update requirement only when revision matches.
         const string updateSql = """
             UPDATE reqviora_review.requirements
             SET
@@ -250,6 +312,7 @@ public sealed class PostgresRequirementReviewStore
             }
         }
 
+        // Record the audit event in the same transaction.
         const string auditSql = """
             INSERT INTO reqviora_review.events
             (
