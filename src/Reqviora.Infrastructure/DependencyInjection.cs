@@ -1,6 +1,7 @@
 using System.Text;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -89,7 +90,17 @@ public static class DependencyInjection
                     RoleClaimType = ClaimTypes.Role
                 };
             });
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.DefaultPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .RequireClaim("email_verified", "true")
+                .Build();
+
+            options.AddPolicy(
+                "EmailVerificationAccess",
+                policy => policy.RequireAuthenticatedUser());
+        });
         services.AddDataProtection();
         services.AddScoped<LoginSecurityService>();
         services.AddScoped<ILoginSecurityService>(sp => sp.GetRequiredService<LoginSecurityService>());

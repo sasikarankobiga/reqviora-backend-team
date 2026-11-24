@@ -516,7 +516,8 @@ public sealed class ProjectWorkflowEndpointsTests : IDisposable
             Email = email,
             NormalizedEmail = email.ToUpperInvariant(),
             PasswordHash = "not-used-in-tests",
-            DisplayName = email
+            DisplayName = email,
+            EmailVerified = true
         };
 
 

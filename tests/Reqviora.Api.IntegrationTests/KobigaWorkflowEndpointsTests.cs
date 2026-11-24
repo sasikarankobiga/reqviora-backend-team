@@ -618,7 +618,8 @@ db.SaveChanges();
         private static User UserWithEmail(string email) => new()
         {
             Email = email, NormalizedEmail = email.ToUpperInvariant(),
-            PasswordHash = "test-only", DisplayName = email
+            PasswordHash = "test-only", DisplayName = email,
+            EmailVerified = true
         };
     }
 

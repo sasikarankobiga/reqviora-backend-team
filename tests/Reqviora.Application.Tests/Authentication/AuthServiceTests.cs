@@ -50,6 +50,54 @@ public sealed class AuthServiceTests
     }
 
     [Fact]
+    public async Task Unverified_user_cannot_login()
+    {
+        var fixture = new Fixture();
+        var user = fixture.AddUser(
+            "person@example.com",
+            "CorrectPassword123!");
+
+        user.EmailVerified = false;
+
+        var result = await fixture.Service.LoginAsync(
+            new LoginRequestDto(
+                user.Email,
+                "CorrectPassword123!"));
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(fixture.Repository.RefreshTokens);
+        Assert.Equal(0, fixture.UnitOfWork.SaveCount);
+    }
+
+    [Fact]
+    public async Task Unverified_user_cannot_refresh_session()
+    {
+        var fixture = new Fixture();
+        var user = fixture.AddUser(
+            "person@example.com",
+            "CorrectPassword123!");
+
+        user.EmailVerified = false;
+
+        var token = new RefreshToken
+        {
+            UserId = user.Id,
+            User = user,
+            TokenHash = "HASH-old-refresh",
+            ExpiresAt = Now.AddDays(1)
+        };
+
+        fixture.Repository.RefreshTokens.Add(token);
+
+        var result = await fixture.Service.RefreshAsync(
+            new RefreshTokenRequestDto("old-refresh"));
+
+        Assert.False(result.Succeeded);
+        Assert.Null(token.RevokedAt);
+        Assert.Single(fixture.Repository.RefreshTokens);
+    }
+
+    [Fact]
     public async Task Refresh_rotates_token_and_revokes_previous_token()
     {
         var fixture = new Fixture();
@@ -119,7 +167,8 @@ public sealed class AuthServiceTests
             {
                 Email = email,
                 NormalizedEmail = email.ToUpperInvariant(),
-                DisplayName = "Test Person"
+                DisplayName = "Test Person",
+                EmailVerified = true
             };
             user.PasswordHash = PasswordHasher.HashPassword(user, password);
             Repository.Users.Add(user);

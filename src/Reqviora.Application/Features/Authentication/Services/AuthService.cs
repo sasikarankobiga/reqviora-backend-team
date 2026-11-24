@@ -37,6 +37,21 @@ public sealed class AuthService(
             return Result<AuthResponseDto>.Failure("Invalid email or password.");
         }
 
+        if (!user.EmailVerified)
+        {
+            await loginSecurity.RecordAsync(
+                user,
+                user.NormalizedEmail,
+                ipAddress,
+                deviceId,
+                false,
+                false,
+                cancellationToken);
+
+            return Result<AuthResponseDto>.Failure(
+                "Email verification is required.");
+        }
+
         var otpRequired = await loginSecurity.RequiresOtpAsync(user, ipAddress, deviceId, cancellationToken);
         if (otpRequired && (string.IsNullOrWhiteSpace(request.OtpCode) || !loginSecurity.ValidateOtp(user, request.OtpCode)))
         {
@@ -83,6 +98,12 @@ public sealed class AuthService(
         var now = timeProvider.GetUtcNow();
         if (existingToken is null || !existingToken.IsActive(now))
             return Result<AuthResponseDto>.Failure("Invalid or expired refresh token.");
+
+        if (!existingToken.User.EmailVerified)
+        {
+            return Result<AuthResponseDto>.Failure(
+                "Email verification is required.");
+        }
 
         var newRefreshToken = tokens.CreateRefreshToken();
         existingToken.RevokedAt = now;
