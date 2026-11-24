@@ -81,7 +81,7 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: reqviora_ci_postgres
           PGDATABASE: reqviora_review_ci_pg
-        run: .github/scripts/postgres-backup-restore-drill.sh
+        run: bash .github/scripts/postgres-backup-restore-drill.sh
       - name: Run contract suites
         shell: bash
         run: |
