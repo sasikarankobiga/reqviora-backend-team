@@ -68,8 +68,8 @@ jobs:
       - name: Verify requirement review stores
         shell: bash
         env:
-          REQVIORA_REVIEW_PG: Host=127.0.0.1;Port=5432;Database=postgres;Username=postgres;Password=reqviora_ci_postgres
-          REQVIORA_REVIEW_SQLSERVER: Server=127.0.0.1,1433;Database=master;User ID=sa;Password=ReqvioraCi_SQL_2026!;TrustServerCertificate=True
+          REQVIORA_REVIEW_PG: Host=127.0.0.1;Port=5432;Database=reqviora_review_ci_pg;Username=postgres;Password=reqviora_ci_postgres
+          REQVIORA_REVIEW_SQLSERVER: Server=127.0.0.1,1433;Database=reqviora_review_ci_sql;User ID=sa;Password=ReqvioraCi_SQL_2026!;TrustServerCertificate=True
         run: |
           dotnet run --configuration Release --project tests/Reqviora.Review.PgSmokeTests
           dotnet run --configuration Release --project tests/Reqviora.Review.SqlServerSmokeTests
@@ -80,7 +80,7 @@ jobs:
           PGPORT: 5432
           PGUSER: postgres
           PGPASSWORD: reqviora_ci_postgres
-          PGDATABASE: postgres
+          PGDATABASE: reqviora_review_ci_pg
         run: .github/scripts/postgres-backup-restore-drill.sh
       - name: Run contract suites
         shell: bash

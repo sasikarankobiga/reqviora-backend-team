@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Reqviora.Review.Persistence/Reqviora.Review.Persistence.csproj" />
+    <ProjectReference Include="../../src/Reqviora.SqlServer.Persistence/Reqviora.SqlServer.Persistence.csproj" />
   </ItemGroup>
 </Project>
