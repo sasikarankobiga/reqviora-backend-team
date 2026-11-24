@@ -1,5 +1,8 @@
 
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Reqviora.Domain.Entities;
+using Reqviora.Infrastructure.Persistence;
 using Npgsql;
 using NpgsqlTypes;
 using Reqviora.Application.Features.AIOrchestration;
@@ -50,6 +53,48 @@ void AddIdentity(NpgsqlCommand command)
         NpgsqlDbType.Varchar,
         requirementId);
 }
+
+var pgOptions = new NpgsqlConnectionStringBuilder(connectionString);
+
+if (pgOptions.Host is not ("localhost" or "127.0.0.1") ||
+    pgOptions.Database != "reqviora_review_ci_pg")
+{
+    throw new InvalidOperationException(
+        "Smoke tests require the isolated local PostgreSQL CI database.");
+}
+
+await using var db = new ReqvioraDbContext(
+    new DbContextOptionsBuilder<ReqvioraDbContext>()
+        .UseNpgsql(connectionString)
+        .Options);
+
+await db.Database.MigrateAsync();
+
+var fixtureEmail = $"{Guid.NewGuid():N}@example.invalid";
+
+var owner = new User
+{
+    Email = fixtureEmail,
+    NormalizedEmail = fixtureEmail.ToUpperInvariant(),
+    DisplayName = "Review CI owner",
+    PasswordHash = "fixture-only",
+    EmailVerified = true
+};
+
+var project = new Project
+{
+    OwnerId = owner.Id,
+    Name = "PostgreSQL Review Smoke Test"
+};
+
+db.AddRange(owner, project);
+await db.SaveChangesAsync();
+
+projectId = project.Id;
+reviewerId = owner.Id;
+
+Console.WriteLine("[PASS] PostgreSQL application schema and project fixture ready");
+
 
 await using var connection =
     new NpgsqlConnection(connectionString);

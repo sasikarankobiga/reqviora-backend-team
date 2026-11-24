@@ -25,7 +25,7 @@ public sealed class AccountSecurityController(
     TimeProvider clock,
     ILogger<AccountSecurityController> logger) : ControllerBase
 {
-    [Authorize]
+    [Authorize(Policy = "EmailVerificationAccess")]
     [HttpPost("email-verification/request")]
     public async Task<IActionResult> RequestEmailVerification(CancellationToken cancellationToken)
     {

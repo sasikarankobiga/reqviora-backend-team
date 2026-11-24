@@ -9,6 +9,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="../../src/Reqviora.Review.Persistence/Reqviora.Review.Persistence.csproj" />
+        <ProjectReference Include="../../src/Reqviora.Infrastructure/Reqviora.Infrastructure.csproj" />
 	</ItemGroup>
 
 </Project>

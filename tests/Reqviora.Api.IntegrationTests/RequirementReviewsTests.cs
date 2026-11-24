@@ -55,7 +55,7 @@ public sealed class RequirementReviewsTests : IDisposable
     [Fact]
     public async Task Submit_denies_other_users_before_loading_the_requirement()
     {
-        using var client = CreateClient(new User());
+        using var client = CreateClient(new User { EmailVerified = true });
 
         using var response = await SubmitAsync(client, Accept);
 
@@ -130,7 +130,7 @@ public sealed class RequirementReviewsTests : IDisposable
     private sealed class ReviewApiFactory : WebApplicationFactory<Program>
     {
         public Guid ProjectId { get; } = Guid.NewGuid();
-        public User Owner { get; } = new();
+        public User Owner { get; } = new() { EmailVerified = true };
         public TestReviewStore Store { get; } = new();
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)

@@ -21,6 +21,36 @@ namespace Reqviora.Api.IntegrationTests;
 public sealed class AccountSecurityEndpointsTests
 {
     [Fact]
+    public async Task Verified_token_can_reach_protected_catalog()
+    {
+        using var factory = new AccountApiFactory(initiallyVerified: true);
+
+        using var client = factory.AuthenticatedClient();
+
+        using var response = await client.GetAsync(
+            "/api/mcp/v1/catalog");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Unverified_token_cannot_access_protected_catalog()
+    {
+        using var factory = new AccountApiFactory();
+        using var client = factory.AuthenticatedClient();
+
+        using var catalog = await client.GetAsync("/api/mcp/v1/catalog");
+
+        Assert.Equal(HttpStatusCode.Forbidden, catalog.StatusCode);
+
+        using var verification = await client.PostAsync(
+            "/api/account-security/email-verification/request",
+            null);
+
+        Assert.Equal(HttpStatusCode.Accepted, verification.StatusCode);
+    }
+
+    [Fact]
     public async Task Email_verification_token_is_single_use()
     {
         using var factory = new AccountApiFactory();
@@ -82,7 +112,7 @@ public sealed class AccountSecurityEndpointsTests
     [Fact]
     public async Task Email_change_confirms_new_address_and_revokes_sessions()
     {
-        using var factory = new AccountApiFactory();
+        using var factory = new AccountApiFactory(initiallyVerified: true);
         using var client = factory.AuthenticatedClient();
 
         using var requested = await client.PostAsJsonAsync(
@@ -154,8 +184,9 @@ public sealed class AccountSecurityEndpointsTests
         public CapturingEmailService Email { get; } = new();
         public RefreshToken RefreshToken { get; }
 
-        public AccountApiFactory()
+        public AccountApiFactory(bool initiallyVerified = false)
         {
+            User.EmailVerified = initiallyVerified;
             User.PasswordHash = new PasswordHasher<User>().HashPassword(User, "Initial-Password-123!");
             RefreshToken = new RefreshToken
             {

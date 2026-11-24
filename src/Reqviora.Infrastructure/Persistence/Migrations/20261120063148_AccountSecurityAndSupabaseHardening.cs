@@ -16,7 +16,7 @@ namespace Reqviora.Infrastructure.Persistence.Migrations
                 table: "Users",
                 type: "boolean",
                 nullable: false,
-                defaultValue: true);
+                defaultValue: false);
 
             migrationBuilder.CreateTable(
                 name: "AccountActionTokens",

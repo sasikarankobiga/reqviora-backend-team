@@ -521,7 +521,8 @@ public sealed class ReviewBlueprintSyncEndpointsTests : IDisposable
             Email = email,
             NormalizedEmail = email.ToUpperInvariant(),
             PasswordHash = "test-only",
-            DisplayName = email
+            DisplayName = email,
+            EmailVerified = true
         };
     }
 

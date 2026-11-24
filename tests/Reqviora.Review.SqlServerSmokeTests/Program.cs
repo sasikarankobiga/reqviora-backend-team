@@ -1,6 +1,9 @@
 using System.Data;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
+using Reqviora.Domain.Entities;
+using Reqviora.SqlServer.Persistence;
 using Microsoft.Data.SqlClient;
 using Reqviora.Application.Features.AIOrchestration;
 using Reqviora.Application.Features.RequirementReview;
@@ -32,6 +35,49 @@ void AddIdentity(SqlCommand command)
     command.Parameters.Add("project_id", SqlDbType.UniqueIdentifier).Value = projectId;
     command.Parameters.Add("requirement_id", SqlDbType.VarChar, 100).Value = requirementId;
 }
+
+var sqlOptions = new SqlConnectionStringBuilder(connectionString);
+var server = sqlOptions.DataSource.Split(',')[0];
+
+if (server is not ("localhost" or "127.0.0.1") ||
+    sqlOptions.InitialCatalog != "reqviora_review_ci_sql")
+{
+    throw new InvalidOperationException(
+        "Smoke tests require the isolated local SQL Server CI database.");
+}
+
+await using var db = new SqlServerReqvioraDbContext(
+    new DbContextOptionsBuilder<SqlServerReqvioraDbContext>()
+        .UseSqlServer(connectionString)
+        .Options);
+
+await db.Database.MigrateAsync();
+
+var fixtureEmail = $"{Guid.NewGuid():N}@example.invalid";
+
+var owner = new User
+{
+    Email = fixtureEmail,
+    NormalizedEmail = fixtureEmail.ToUpperInvariant(),
+    DisplayName = "Review CI owner",
+    PasswordHash = "fixture-only",
+    EmailVerified = true
+};
+
+var project = new Project
+{
+    OwnerId = owner.Id,
+    Name = "SQL Server Review Smoke Test"
+};
+
+db.AddRange(owner, project);
+await db.SaveChangesAsync();
+
+projectId = project.Id;
+reviewerId = owner.Id;
+
+Console.WriteLine("[PASS] SQL Server application schema and project fixture ready");
+
 
 await using var connection = new SqlConnection(connectionString);
 await connection.OpenAsync();
